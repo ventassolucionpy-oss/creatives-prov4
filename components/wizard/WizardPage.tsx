@@ -487,8 +487,15 @@ export default function WizardPage({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      if (!res.ok) { const e = await res.json(); throw new Error(e.error) }
-      const data = await res.json()
+      let data: Record<string, unknown>
+      try {
+        data = await res.json()
+      } catch {
+        throw new Error(`Error del servidor (${res.status}). Intentá de nuevo.`)
+      }
+      if (!res.ok) {
+        throw new Error((data as {error?: string}).error || `Error ${res.status}`)
+      }
       setOutput(data)
       setCurrentStep(totalSteps)
       setIsGenerating(false)

@@ -552,13 +552,28 @@ export async function POST(req: NextRequest) {
 
     const message = await claude.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 4000,
+      max_tokens: 8000,
       messages: [{ role: 'user', content: prompt }],
     })
 
     const raw = message.content[0].type === 'text' ? message.content[0].text : ''
-    const clean = raw.replace(/```json|```/g, '').trim()
-    const output = JSON.parse(clean)
+    // Robust JSON extraction: strip markdown fences, then find the outermost JSON object
+    let clean = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
+    // If the response has text before the JSON, extract just the JSON object
+    const jsonStart = clean.indexOf('{')
+    const jsonEnd = clean.lastIndexOf('}')
+    if (jsonStart > 0 && jsonEnd > jsonStart) {
+      clean = clean.slice(jsonStart, jsonEnd + 1)
+    }
+    let output: Record<string, unknown>
+    try {
+      output = JSON.parse(clean)
+    } catch (parseErr) {
+      // If still fails, log raw for debugging and return a useful error
+      console.error('JSON parse failed. Stop reason:', message.stop_reason, 'Raw length:', raw.length)
+      console.error('Raw preview:', raw.slice(0, 500))
+      throw new Error(`La IA generó una respuesta demasiado larga. Intentá con menos campos opcionales o un producto con descripción más corta.`)
+    }
 
     // Update generation with output
     if (gen) {
